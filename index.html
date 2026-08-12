@@ -965,7 +965,7 @@ async function ghListDocs() {
 async function ghReadDoc(id) {
   try {
     const data = await ghApi(`${GH_DOCS_PATH}/${id}.json`, 'GET');
-    const content = JSON.parse(atob(data.content.replace(/\s/g, '')));
+    const content = JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\s/g, '')))));
     return { ...content, _sha: data.sha };
   } catch(e) {
     return null;
