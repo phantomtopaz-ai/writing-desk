@@ -735,15 +735,18 @@
       <div class="setting-group">
         <div class="setting-label">云端同步 · GitHub</div>
         <p style="color:#8492a3;font-size:12px;line-height:1.6;margin:0 0 10px;">
-          文稿自动同步到 GitHub 私有仓库，<br>任何设备打开即可继续写作。
+          文稿自动同步到你的 GitHub 仓库，<br>PC 与手机各填一次 Token 即可永久同步。
         </p>
+        <input type="password" id="gh-token" placeholder="粘贴 Token（ghp_ 开头）"
+          style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d5dde8;border-radius:8px;background:#fff;color:#424e60;font-size:12px;margin-bottom:8px;outline:none;">
         <div style="display:flex;gap:8px;">
           <button class="btn" id="btn-gh-pull" style="flex:1;font-size:12px;">从云端拉取</button>
           <button class="btn primary" id="btn-gh-push" style="flex:1;font-size:12px;">推送到云端</button>
         </div>
         <p style="color:#b3beca;font-size:11px;margin-top:8px;" id="gh-status">未配置</p>
         <p style="color:#9aa6b5;font-size:10px;line-height:1.5;margin:8px 0 0;">
-          Token 需要勾选 repo 权限，见 <a href="https://github.com/settings/tokens" target="_blank" style="color:#6d8ba0;">GitHub Settings</a>
+          填一次后自动记住。Token 只存在本机浏览器，不会上传。<br>
+          生成 Token：<a href="https://github.com/settings/tokens" target="_blank" style="color:#6d8ba0;">GitHub Settings</a>（勾选 repo，永不过期）
         </p>
       </div>
     </div>
@@ -907,14 +910,19 @@ function saveSettings() {
 /* ========== GitHub 云端同步 ========== */
 const GH_REPO = 'phantomtopaz-ai/writing-desk';
 const GH_DOCS_PATH = 'docs';
-const _GH_TOKEN = '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';
+const LS_GH_TOKEN = 'yanqiu-gh-token-v2';
 
-function getGHToken() { return _GH_TOKEN; }
-function hasGHToken() { return true; }
+// token 不写进代码（写进公开仓库会被 GitHub 自动作废）；改为浏览器本地存一次
+function getGHToken() { return (localStorage.getItem(LS_GH_TOKEN) || '').trim(); }
+function setGHToken(t) { localStorage.setItem(LS_GH_TOKEN, (t || '').trim()); updateGHStatus(); }
+function hasGHToken() { return !!getGHToken(); }
 
 function updateGHStatus(msg) {
   const el = $('gh-status');
-  if (msg) { el.textContent = msg; } else { el.textContent = '就绪'; }
+  if (!el) return;
+  if (msg) { el.textContent = msg; }
+  else if (!hasGHToken()) { el.textContent = '未配置 · 请在下方填入一次 Token'; }
+  else { el.textContent = '就绪 · 已配置'; }
 }
 
 async function ghApi(path, method, body) {
@@ -1042,29 +1050,48 @@ async function ghPullAll() {
       applyDocToEditor();
       renderDocList();
     }
-    updateGHStatus('已同步');
-    setTimeout(() => updateGHStatus(), 3000);
+    updateGHStatus('已同步 · 拉取完成');
+    setTimeout(() => updateGHStatus(), 4000);
   } catch(e) {
-    console.warn('云端拉取失败:', e);
-    updateGHStatus('拉取失败');
+    const m = (e && e.message) || String(e);
+    console.warn('云端拉取失败:', m);
+    if (/401|Bad credentials/i.test(m)) {
+      updateGHStatus('拉取失败 · Token 无效，请重新填入');
+    } else if (/403/i.test(m)) {
+      updateGHStatus('拉取失败 · 权限不足（需勾选 repo）');
+    } else {
+      updateGHStatus('拉取失败 · ' + m.slice(0, 40));
+    }
   }
 }
 
 // 把本地所有文稿推送到云端
 async function ghPushAll() {
-  if (!hasGHToken()) { toast('请先在设置中配置 GitHub Token'); return; }
+  if (!hasGHToken()) { toast('请先在下方填入 GitHub Token'); updateGHStatus('未配置 · 请先填入 Token'); return; }
   try {
     updateGHStatus('推送中…');
     for (const doc of state.docs) {
       await ghWriteDoc(doc);
     }
-    updateGHStatus('已推送');
-    setTimeout(() => updateGHStatus(), 3000);
+    updateGHStatus('已推送 · 全部同步成功');
+    setTimeout(() => updateGHStatus(), 4000);
     toast('已推送到云端');
   } catch(e) {
-    console.warn('云端推送失败:', e);
-    updateGHStatus('推送失败');
-    toast('推送失败');
+    const m = (e && e.message) || String(e);
+    console.warn('云端推送失败:', m);
+    if (/401|Bad credentials/i.test(m)) {
+      updateGHStatus('推送失败 · Token 无效，请重新填入');
+      toast('Token 无效，请重新填入');
+    } else if (/403/i.test(m)) {
+      updateGHStatus('推送失败 · 权限不足（需勾选 repo）');
+      toast('Token 权限不足');
+    } else if (/404/i.test(m)) {
+      updateGHStatus('推送失败 · 仓库或路径不存在');
+      toast('仓库不存在');
+    } else {
+      updateGHStatus('推送失败 · ' + m.slice(0, 40));
+      toast('推送失败');
+    }
   }
 }
 
@@ -1275,6 +1302,11 @@ function openPanel(name) {
   if (overlay) overlay.classList.add('open');
   if (panel) panel.classList.add('open');
   if (name === 'docs') renderDocList();
+  if (name === 'settings') {
+    const gt = $('gh-token');
+    if (gt) gt.value = getGHToken();
+    updateGHStatus();
+  }
 }
 function closePanel(name) {
   const overlay = $(name + '-overlay');
@@ -2070,10 +2102,30 @@ $('btn-clear-all').addEventListener('click', () => {
 });
 
 /* ========== GitHub 同步按钮 ========== */
+$('gh-token').addEventListener('input', () => {
+  setGHToken($('gh-token').value);
+});
+$('gh-token').addEventListener('change', async () => {
+  const t = $('gh-token').value.trim();
+  if (!t) return;
+  // 填入后立即验证 + 拉取一次
+  updateGHStatus('验证中…');
+  try {
+    await ghApi(`${GH_DOCS_PATH}`, 'GET');
+    updateGHStatus('就绪 · Token 有效，正在拉取云端文稿…');
+    await ghPullAll();
+  } catch(e) {
+    const m = (e && e.message) || String(e);
+    if (/404/.test(m)) { updateGHStatus('就绪 · Token 有效（云端暂无文稿）'); }
+    else if (/401|Bad credentials/i.test(m)) { updateGHStatus('Token 无效，请检查后重新粘贴'); }
+    else { updateGHStatus('验证失败 · ' + m.slice(0, 40)); }
+  }
+});
+
 $('btn-gh-pull').addEventListener('click', async () => {
+  if (!hasGHToken()) { updateGHStatus('未配置 · 请先填入 Token'); toast('请先填入 Token'); return; }
   await ghPullAll();
   toast('已从云端拉取');
-  closePanel('settings');
 });
 
 $('btn-gh-push').addEventListener('click', async () => {
