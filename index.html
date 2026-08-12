@@ -735,9 +735,8 @@
       <div class="setting-group">
         <div class="setting-label">云端同步 · GitHub</div>
         <p style="color:#8492a3;font-size:12px;line-height:1.6;margin:0 0 10px;">
-          输入你的 GitHub Personal Access Token，<br>文稿会自动同步到云端，多设备共享。
+          文稿自动同步到 GitHub 私有仓库，<br>任何设备打开即可继续写作。
         </p>
-        <input type="password" class="modal-input" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="font-size:12px;margin-bottom:8px;">
         <div style="display:flex;gap:8px;">
           <button class="btn" id="btn-gh-pull" style="flex:1;font-size:12px;">从云端拉取</button>
           <button class="btn primary" id="btn-gh-push" style="flex:1;font-size:12px;">推送到云端</button>
@@ -908,29 +907,14 @@ function saveSettings() {
 /* ========== GitHub 云端同步 ========== */
 const GH_REPO = 'phantomtopaz-ai/writing-desk';
 const GH_DOCS_PATH = 'docs';
-const LS_GH_TOKEN = 'yuqiu-gh-token-v1';
+const _GH_TOKEN = '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';
 
-function getGHToken() {
-  return localStorage.getItem(LS_GH_TOKEN) || '';
-}
-
-function setGHToken(t) {
-  localStorage.setItem(LS_GH_TOKEN, t);
-  updateGHStatus();
-}
-
-function hasGHToken() { return !!getGHToken(); }
+function getGHToken() { return _GH_TOKEN; }
+function hasGHToken() { return true; }
 
 function updateGHStatus(msg) {
   const el = $('gh-status');
-  const tokenOk = hasGHToken();
-  if (msg) {
-    el.textContent = msg;
-  } else if (!tokenOk) {
-    el.textContent = '未配置';
-  } else {
-    el.textContent = '就绪';
-  }
+  if (msg) { el.textContent = msg; } else { el.textContent = '就绪'; }
 }
 
 async function ghApi(path, method, body) {
@@ -2086,11 +2070,6 @@ $('btn-clear-all').addEventListener('click', () => {
 });
 
 /* ========== GitHub 同步按钮 ========== */
-$('gh-token').addEventListener('input', () => {
-  const v = $('gh-token').value.trim();
-  setGHToken(v);
-});
-
 $('btn-gh-pull').addEventListener('click', async () => {
   await ghPullAll();
   toast('已从云端拉取');
@@ -2171,8 +2150,6 @@ function init() {
   $('val-rain').textContent = Math.round(state.settings.rainVol * 100);
   $('vol-type').value = Math.round(state.settings.typeVol * 100);
   $('val-type').textContent = Math.round(state.settings.typeVol * 100);
-  // 恢复 token 显示
-  $('gh-token').value = getGHToken();
   updateGHStatus();
   autoresize();
   requestAnimationFrame(renderRain);
