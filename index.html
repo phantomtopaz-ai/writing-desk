@@ -843,6 +843,18 @@ function uid() {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
 }
 
+// 统一换行表示：抹平不同浏览器 innerText 对空行的差异
+// \r\n / \r 归一为 \n；结尾多余空白去掉；连续 3 个以上换行压成 2 个（即最多留一个空行）
+function normalizeText(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/\r\n?/g, '\n')     // Windows / 老 Mac 换行归一
+    .replace(/\u00a0/g, ' ')     // 不间断空格还原成普通空格
+    .replace(/\n{3,}/g, '\n\n')  // 段落间最多留一个空行
+    .replace(/[ \t]+\n/g, '\n')  // 行尾空白去掉
+    .replace(/\n+$/g, '');       // 文末多余空行去掉
+}
+
 function fmtTime(t) {
   const d = new Date(t);
   const pad = n => String(n).padStart(2, '0');
@@ -1126,7 +1138,7 @@ function applyDocToEditor() {
   const d = currentDoc();
   if (!d) return;
   const ed = $('editor');
-  ed.innerText = d.content || '';
+  ed.innerText = normalizeText(d.content || '');
   applyDocStyles(d);
   $('doc-title').textContent = d.title || '无题';
   updateWordCount();
@@ -1186,7 +1198,7 @@ function markSaved() {
 const saveDocDebounced = debounce(() => {
   const d = currentDoc();
   if (!d) return;
-  d.content = $('editor').innerText;
+  d.content = normalizeText($('editor').innerText);
   d.updatedAt = Date.now();
   saveDocs();
   markSaved();
@@ -1266,7 +1278,7 @@ function switchDoc(id) {
   // 先保存当前
   const cur = currentDoc();
   if (cur) {
-    cur.content = $('editor').innerText;
+    cur.content = normalizeText($('editor').innerText);
     cur.updatedAt = Date.now();
   }
   state.currentId = id;
@@ -1791,6 +1803,10 @@ const FONT_STACKS = {
   fang:  '"FangSong","STFangsong","FangSong_GB2312","仿宋",serif'
 };
 
+// 中文排版禁则：这些标点不能出现在一行的开头（避头 / 行首禁则）
+// 出现时把它挤回上一行末尾（行尾允许悬挂一个标点）
+const NO_LINE_START = '，。、；：！？）」』】》〉·…—～%‰’”,.!?;:)』」】';
+
 // CJK-aware 自动换行：中文按字拆，西文/数字按词
 function wrapText(ctx, text, maxWidth) {
   const out = [];
@@ -1831,10 +1847,24 @@ function wrapText(ctx, text, maxWidth) {
       // 单个中文字符
       const test = line + tok;
       if (ctx.measureText(test).width <= maxWidth) { line = test; }
+      else if (line && NO_LINE_START.includes(tok)) {
+        // 禁则标点：不能放到下一行行首，让它悬挂在本行末尾
+        line = test;
+        pushLine();
+      }
       else { if (line) pushLine(); line = tok; }
     }
   }
   if (line) out.push(line);
+
+  // 扫尾：把任何落在行首的禁则标点拽回上一行末尾（处理连续标点等边界情况）
+  for (let i = 1; i < out.length; i++) {
+    while (out[i] && NO_LINE_START.includes(out[i][0])) {
+      out[i - 1] += out[i][0];
+      out[i] = out[i].slice(1);
+    }
+    if (out[i] === '') { out.splice(i, 1); i--; }
+  }
   return out;
 }
 
@@ -2151,7 +2181,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     const d = currentDoc();
     if (d) {
-      d.content = $('editor').innerText;
+      d.content = normalizeText($('editor').innerText);
       d.updatedAt = Date.now();
       saveDocs();
       markSaved();
