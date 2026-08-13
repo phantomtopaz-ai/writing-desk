@@ -214,6 +214,44 @@
   .icon-btn:hover { background: rgba(120,140,170,0.10); color: #424e60; }
   .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
+  /* ============ 选中文字浮动格式条 ============ */
+  #fmt-bar {
+    position: fixed;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 8px;
+    background: rgba(252,253,254,0.96);
+    border: 1px solid rgba(120,140,170,0.28);
+    box-shadow: 0 6px 22px rgba(60,72,90,0.16);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transform: translate(-50%, -100%);
+    opacity: 0;
+    transition: opacity 0.14s ease;
+  }
+  #fmt-bar.show { display: inline-flex; opacity: 1; }
+  #fmt-bar .fmt-btn {
+    width: 30px; height: 30px;
+    border: none; background: transparent;
+    border-radius: 6px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 15px; line-height: 1;
+    font-family: Georgia, "Times New Roman", serif;
+    transition: background 0.15s, color 0.15s;
+  }
+  #fmt-bar .fmt-btn:hover { background: rgba(120,140,170,0.12); color: var(--ink); }
+  #fmt-bar .fmt-btn.active { background: rgba(120,140,170,0.18); color: var(--ink); }
+  #fmt-bar .fmt-btn b { font-weight: 800; }
+  #fmt-bar .fmt-btn i { font-style: italic; }
+  #fmt-bar .fmt-btn u { text-decoration: underline; }
+  /* 编辑器内富文本样式（下划线用较柔和的线） */
+  .editable u { text-decoration-color: rgba(var(--frame),0.85); text-underline-offset: 3px; }
+
   /* ============ 主编辑区 ============ */
   main.editor {
     position: fixed;
@@ -273,6 +311,23 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     transform: translateZ(0);
+  }
+  /* 编辑器内的行内格式：正文字重仅 300，且中文字体常缺斜体/重字重档，
+     故显式强化——粗体用高字重 + 极细描边加重观感，斜体用 skew 人工倾斜（中文也可见）。 */
+  #editor b, #editor strong {
+    font-weight: 700;
+    -webkit-text-stroke: 0.3px currentColor;
+    text-stroke: 0.3px currentColor;
+  }
+  #editor i, #editor em {
+    font-style: italic;
+    display: inline-block;
+    transform: skewX(-11deg);
+  }
+  #editor u {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
   }
   #editor::placeholder, .editable:empty::before {
     content: attr(data-placeholder);
@@ -769,6 +824,13 @@
     </div>
   </main>
 
+  <!-- 选中文字时浮现的格式条 -->
+  <div id="fmt-bar" role="toolbar" aria-label="文字格式">
+    <button class="fmt-btn" id="fmt-bold" title="加粗 (Ctrl+B)"><b>B</b></button>
+    <button class="fmt-btn" id="fmt-italic" title="斜体 (Ctrl+I)"><i>I</i></button>
+    <button class="fmt-btn" id="fmt-underline" title="下划线 (Ctrl+U)"><u>U</u></button>
+  </div>
+
   <!-- 底部 -->
   <footer class="bottombar">
     <div class="left">
@@ -1027,6 +1089,112 @@ function normalizeText(s) {
     .replace(/\n{3,}/g, '\n\n')  // 段落间最多留一个空行
     .replace(/[ \t]+\n/g, '\n')  // 行尾空白去掉
     .replace(/\n+$/g, '');       // 文末多余空行去掉
+}
+
+/* ========== 富文本存储辅助 ========== */
+// 判断一段内容是否为富文本 HTML（含我们允许的行内标签）。旧文稿是纯文本，返回 false。
+function isHtmlContent(s) {
+  return typeof s === 'string' && /<(b|strong|i|em|u|br|div|p|span)\b[^>]*>/i.test(s);
+}
+
+// 从编辑器读出「清洗过的 HTML」：只保留 b/i/u 行内格式与换行结构，剔除多余属性、样式、其它标签
+// 采用自底向上递归：先把每个元素的样式/标签折算成 b/i/u 包裹，再解包非白名单标签，
+// 避免「父元素 innerHTML 重写导致子元素漏处理」的顺序陷阱（这是之前粗体/斜体存不住的真凶）。
+function readEditorHTML() {
+  const ed = $('editor');
+  const tmp = document.createElement('div');
+  tmp.innerHTML = ed.innerHTML;
+
+  const ALLOW = { B:1, I:1, U:1, BR:1, DIV:1, P:1 };
+
+  // 判断某元素本身是否携带「加粗 / 斜体 / 下划线」语义（标签名或内联样式）
+  function styleFlags(el) {
+    const tag = el.tagName;
+    const st = (el.getAttribute && el.getAttribute('style')) || '';
+    const b = tag === 'B' || tag === 'STRONG' || /font-weight\s*:\s*(bold|bolder|[5-9]00)/i.test(st);
+    const i = tag === 'I' || tag === 'EM' || /font-style\s*:\s*italic/i.test(st);
+    const u = tag === 'U' || /text-decoration[^;]*underline/i.test(st);
+    return { b, i, u };
+  }
+
+  // 自底向上处理：先递归处理子节点，再决定当前元素如何折算
+  function clean(node) {
+    // 先处理所有元素类型的子节点（复制成数组，避免遍历时结构变化）
+    [...node.children].forEach(clean);
+
+    if (node === tmp) return;
+    if (node.nodeType !== 1) return;
+
+    const f = styleFlags(node);
+    let inner = node.innerHTML;
+    // 按 u -> i -> b 顺序包裹（最终顺序为 b>i>u，方便统一）
+    if (f.u) inner = '<u>' + inner + '</u>';
+    if (f.i) inner = '<i>' + inner + '</i>';
+    if (f.b) inner = '<b>' + inner + '</b>';
+
+    const tag = node.tagName;
+    const keepAsStructure = (tag === 'DIV' || tag === 'P' || tag === 'BR');
+
+    if (keepAsStructure) {
+      // 结构标签保留其本体，但清掉属性；格式包裹放进它内部
+      [...node.attributes].forEach(a => node.removeAttribute(a.name));
+      if (tag !== 'BR') node.innerHTML = inner;
+    } else {
+      // 行内 / 其它标签（span/font/b/i/u/strong/em…）一律解包为「格式包裹后的内容」
+      // 若自身就是纯 b/i/u 裸标签，styleFlags 已把它折算进 inner，这里 outerHTML 替换掉自身即可
+      node.outerHTML = inner;
+    }
+  }
+  clean(tmp);
+
+  // 兜底：去掉残留的非白名单标签与所有属性
+  tmp.querySelectorAll('*').forEach(n => {
+    [...n.attributes].forEach(a => n.removeAttribute(a.name));
+  });
+  tmp.querySelectorAll('*').forEach(n => {
+    if (!ALLOW[n.tagName]) n.outerHTML = n.innerHTML;
+  });
+
+  // 合并相邻同类嵌套：<b><b>x</b></b> -> <b>x</b> 之类（多做几遍收敛）
+  let out = tmp.innerHTML;
+  for (let k = 0; k < 4; k++) {
+    out = out
+      .replace(/<b>\s*<b>/gi, '<b>').replace(/<\/b>\s*<\/b>/gi, '</b>')
+      .replace(/<i>\s*<i>/gi, '<i>').replace(/<\/i>\s*<\/i>/gi, '</i>')
+      .replace(/<u>\s*<u>/gi, '<u>').replace(/<\/u>\s*<\/u>/gi, '</u>')
+      .replace(/<b>(\s*)<\/b>/gi, '$1').replace(/<i>(\s*)<\/i>/gi, '$1').replace(/<u>(\s*)<\/u>/gi, '$1');
+  }
+  return out;
+}
+
+function renameTag(node, name) {
+  const el = document.createElement(name);
+  while (node.firstChild) el.appendChild(node.firstChild);
+  node.replaceWith(el);
+}
+
+// HTML → 纯文本（供字数统计、起标题、列表预览、txt/长图导出、避头排版使用）
+// 块级标签(div/p)与 <br> 还原为换行，标签剔除，再走 normalizeText 归一空行
+function htmlToText(html) {
+  if (html == null) return '';
+  if (!isHtmlContent(html)) return normalizeText(html);   // 旧纯文本，直接归一
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  // 块级元素之间补换行
+  tmp.querySelectorAll('div, p').forEach(n => { n.insertAdjacentText('beforebegin', '\n'); });
+  tmp.querySelectorAll('br').forEach(n => { n.replaceWith('\n'); });
+  let text = tmp.textContent || '';
+  return normalizeText(text);
+}
+
+// 把内容渲染进编辑器：富文本走 innerHTML，旧纯文本走 innerText（保持原有空行行为）
+function renderContentToEditor(content) {
+  const ed = $('editor');
+  if (isHtmlContent(content)) {
+    ed.innerHTML = content;
+  } else {
+    ed.innerText = normalizeText(content || '');
+  }
 }
 
 function fmtTime(t) {
@@ -1312,7 +1480,7 @@ function applyDocToEditor() {
   const d = currentDoc();
   if (!d) return;
   const ed = $('editor');
-  ed.innerText = normalizeText(d.content || '');
+  renderContentToEditor(d.content || '');
   applyDocStyles(d);
   $('doc-title').textContent = d.title || '无题';
   updateWordCount();
@@ -1350,7 +1518,7 @@ function applySettings() {
 }
 
 function updateWordCount() {
-  const text = $('editor').innerText || '';
+  const text = htmlToText($('editor').innerHTML) || '';
   const n = text.replace(/\s+/g, '').length;
   $('word-count').textContent = n + ' 字';
 }
@@ -1372,16 +1540,24 @@ function markSaved() {
 const saveDocDebounced = debounce(() => {
   const d = currentDoc();
   if (!d) return;
-  d.content = normalizeText($('editor').innerText);
+  d.content = getEditorContent();
   d.updatedAt = Date.now();
   saveDocs();
   markSaved();
 }, 600);
 
+// 从编辑器取要存储的内容：含 b/i/u 格式则存清洗后的 HTML，纯文字则存归一纯文本（旧稿行为不变）
+function getEditorContent() {
+  const html = readEditorHTML();
+  // 只要清洗后含 b/i/u 或多段落结构就存 HTML；否则回退纯文本（旧稿不平白加标签）
+  if (/<(b|i|u)\b/i.test(html)) return html;
+  return normalizeText($('editor').innerText);
+}
+
 const autoTitleDebounced = debounce(() => {
   const d = currentDoc();
   if (!d) return;
-  const text = $('editor').innerText;
+  const text = htmlToText($('editor').innerHTML);
   // 自动从正文起标题（只起一次：标题仍是「无题」时）
   if ((!d.title || d.title === '无题') && text.trim()) {
     const firstLine = text.trim().split(/\r?\n/)[0].slice(0, 24);
@@ -1402,7 +1578,7 @@ function renderDocList() {
   sorted.forEach(d => {
     const li = document.createElement('li');
     li.className = 'doc-item' + (d.id === state.currentId ? ' active' : '');
-    const preview = (d.content || '').replace(/\s+/g, ' ').slice(0, 32) || '（空白）';
+    const preview = htmlToText(d.content || '').replace(/\s+/g, ' ').slice(0, 32) || '（空白）';
     li.innerHTML = `
       <div style="flex:1;min-width:0;">
         <div class="name">${escapeHtml(d.title || '无题')}</div>
@@ -1452,7 +1628,7 @@ function switchDoc(id) {
   // 先保存当前
   const cur = currentDoc();
   if (cur) {
-    cur.content = normalizeText($('editor').innerText);
+    cur.content = getEditorContent();
     cur.updatedAt = Date.now();
   }
   state.currentId = id;
@@ -1543,6 +1719,81 @@ function autoresize() {
   ed.style.height = 'auto';
   ed.style.height = ed.scrollHeight + 'px';
 }
+
+/* ========== 富文本格式：加粗 / 斜体 / 下划线 ========== */
+// 用浏览器原生 execCommand 对当前选区加/去格式；粗/斜/下划线是行内标签，不影响换行与纯文本抽取
+function applyFormat(cmd) {
+  const ed = $('editor');
+  ed.focus();
+  try { document.execCommand('styleWithCSS', false, false); } catch(e) {}
+  document.execCommand(cmd, false, null);
+  // 立即回存并刷新按钮态
+  markDirty();
+  saveDocDebounced();
+  updateFmtButtons();
+  positionFmtBar();
+}
+
+function updateFmtButtons() {
+  try {
+    $('fmt-bold').classList.toggle('active', document.queryCommandState('bold'));
+    $('fmt-italic').classList.toggle('active', document.queryCommandState('italic'));
+    $('fmt-underline').classList.toggle('active', document.queryCommandState('underline'));
+  } catch(e) {}
+}
+
+// 根据当前选区定位浮动格式条；无选区则隐藏
+function positionFmtBar() {
+  const bar = $('fmt-bar');
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) { bar.classList.remove('show'); return; }
+  const range = sel.getRangeAt(0);
+  // 选区必须落在编辑器内
+  const ed = $('editor');
+  if (!ed.contains(range.commonAncestorContainer)) { bar.classList.remove('show'); return; }
+  const rect = range.getBoundingClientRect();
+  if (!rect || (rect.width === 0 && rect.height === 0)) { bar.classList.remove('show'); return; }
+  bar.classList.add('show');
+  const barW = bar.offsetWidth || 108;
+  let x = rect.left + rect.width / 2;
+  x = Math.max(barW / 2 + 6, Math.min(window.innerWidth - barW / 2 - 6, x));
+  let y = rect.top - 8;                       // 浮在选区上方
+  if (y < 44) y = rect.bottom + 40;           // 顶部空间不够则改浮在下方
+  bar.style.left = x + 'px';
+  bar.style.top = y + 'px';
+  updateFmtButtons();
+}
+
+// 选区变化 / 松开鼠标 / 键盘移动光标 → 更新格式条
+document.addEventListener('selectionchange', () => {
+  // 仅当焦点在编辑器时才处理，避免面板输入框误触
+  if (document.activeElement === $('editor')) positionFmtBar();
+});
+$('editor').addEventListener('mouseup', () => setTimeout(positionFmtBar, 0));
+$('editor').addEventListener('keyup', e => {
+  // 方向键/Shift 选择后刷新位置
+  if (e.shiftKey || e.key.indexOf('Arrow') === 0) positionFmtBar();
+});
+$('editor').addEventListener('blur', () => {
+  // 失焦时延迟隐藏，留出时间点工具栏按钮
+  setTimeout(() => { if (document.activeElement !== $('editor')) $('fmt-bar').classList.remove('show'); }, 150);
+});
+window.addEventListener('scroll', () => { if ($('fmt-bar').classList.contains('show')) positionFmtBar(); }, true);
+
+// 工具栏按钮（mousedown 防止选区在 click 前丢失）
+[['fmt-bold','bold'],['fmt-italic','italic'],['fmt-underline','underline']].forEach(([id,cmd]) => {
+  $(id).addEventListener('mousedown', e => { e.preventDefault(); applyFormat(cmd); });
+});
+
+// 快捷键 Ctrl/Cmd + B / I / U
+$('editor').addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    const k = e.key.toLowerCase();
+    if (k === 'b') { e.preventDefault(); applyFormat('bold'); }
+    else if (k === 'i') { e.preventDefault(); applyFormat('italic'); }
+    else if (k === 'u') { e.preventDefault(); applyFormat('underline'); }
+  }
+});
 
 /* ========== 字体 / 字号 / 行距 ========== */
 $$('#font-options .font-opt').forEach(el => {
@@ -2329,7 +2580,7 @@ $('btn-export-json').addEventListener('click', () => {
 $('btn-export-txt').addEventListener('click', () => {
   const d = currentDoc();
   if (!d) return;
-  const blob = new Blob([d.content || ''], { type: 'text/plain;charset=utf-8' });
+  const blob = new Blob([htmlToText(d.content || '')], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.download = (d.title || '无题') + '.txt';
@@ -2420,7 +2671,7 @@ function renderDocToCanvas(doc) {
   const CONTENT_W = W - PAD_X * 2;
 
   const title = doc.title || '无题';
-  const text = doc.content || '';
+  const text = htmlToText(doc.content || '');
   const fontStack = FONT_STACKS[doc.font] || FONT_STACKS.serif;
   const fontSize = doc.size || 18;
   const lineHeight = doc.lh || 1.9;
@@ -2586,7 +2837,7 @@ function renderDocToCanvas(doc) {
 $('btn-export-img').addEventListener('click', async () => {
   const d = currentDoc();
   if (!d) return;
-  if (!(d.content || '').trim()) { toast('当前文稿是空的'); return; }
+  if (!htmlToText(d.content || '').trim()) { toast('当前文稿是空的'); return; }
   const btn = $('btn-export-img');
   const orig = btn.textContent;
   btn.disabled = true;
@@ -2728,7 +2979,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     const d = currentDoc();
     if (d) {
-      d.content = normalizeText($('editor').innerText);
+      d.content = getEditorContent();
       d.updatedAt = Date.now();
       saveDocs();
       markSaved();
