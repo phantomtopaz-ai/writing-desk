@@ -501,6 +501,97 @@
   }
   .doc-item:hover .del { opacity: 1; }
   .doc-item .del:hover { color: #b87a78; background: rgba(184,122,120,0.10); }
+  .doc-item .act {
+    background: transparent; border: none;
+    color: #c0cad4; cursor: pointer;
+    font-size: 15px; padding: 4px 6px;
+    border-radius: 3px; letter-spacing: -2px;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s, background 0.2s;
+  }
+  .doc-item:hover .act { opacity: 1; }
+  .doc-item .act:hover { color: #6d8ba0; background: rgba(120,140,170,0.12); }
+
+  /* ---- 文件夹树 ---- */
+  .grp-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px; border-radius: 4px; cursor: pointer;
+    border: 1px solid transparent; margin-bottom: 2px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .grp-item:hover { background: rgba(255,255,255,0.45); }
+  .grp-item.active { background: rgba(255,255,255,0.65); border-color: rgba(140,160,180,0.35); }
+  .grp-item.drop-hover { background: rgba(120,140,170,0.18); border-color: rgba(120,140,170,0.55); }
+  .grp-caret {
+    width: 12px; flex: none;
+    color: #a3b0bd; line-height: 1;
+    transition: transform 0.18s ease;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .folder-row.open > .grp-item .grp-caret { transform: rotate(90deg); }
+  .grp-caret svg { width: 9px; height: 9px; display: block; }
+  .grp-icon {
+    width: 14px; height: 14px; flex: none; color: #8492a3;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .grp-icon svg { width: 14px; height: 14px; display: block; }
+  .grp-name {
+    flex: 1; min-width: 0;
+    font-family: "Songti SC", "宋体", serif;
+    font-size: 14px; color: #55637a;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .grp-count {
+    font-size: 11px; color: #b3beca; flex: none;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    letter-spacing: 0.05em;
+  }
+  .grp-act {
+    background: transparent; border: none; cursor: pointer; flex: none;
+    color: #c0cad4; font-size: 13px; padding: 2px 5px; border-radius: 3px;
+    opacity: 0; transition: opacity 0.2s, color 0.2s, background 0.2s;
+  }
+  .grp-item:hover .grp-act { opacity: 1; }
+  .grp-act:hover { color: #6d8ba0; background: rgba(120,140,170,0.12); }
+  .grp-act.del:hover { color: #b87a78; background: rgba(184,122,120,0.10); }
+
+  .folder-children { list-style: none; padding: 0 0 0 18px; margin: 0 0 8px; }
+  .folder-name-input {
+    flex: 1; min-width: 0;
+    font-family: "Songti SC", "宋体", serif; font-size: 14px;
+    color: #424e60; background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(120,140,170,0.45); border-radius: 3px;
+    padding: 3px 7px; outline: none;
+  }
+  .lib-divider { height: 1px; background: rgba(140,160,180,0.16); margin: 10px 4px; list-style: none; }
+  .lib-empty {
+    font-size: 12px; color: #b3beca; padding: 4px 12px 10px;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    list-style: none;
+  }
+  .doc-item.dragging { opacity: 0.4; }
+
+  /* 移动到… 浮层 */
+  .ctx-menu {
+    position: fixed; z-index: 4000; min-width: 172px;
+    background: #fbfcfd; border: 1px solid rgba(140,160,180,0.28);
+    border-radius: 5px; box-shadow: 0 8px 26px rgba(80,100,125,0.16);
+    padding: 5px; display: none;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .ctx-menu.open { display: block; }
+  .ctx-label {
+    font-size: 10px; color: #b3beca; letter-spacing: 0.12em;
+    padding: 5px 9px 4px;
+  }
+  .ctx-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px; border-radius: 3px; cursor: pointer;
+    font-size: 13px; color: #55637a; white-space: nowrap;
+  }
+  .ctx-item:hover { background: rgba(120,140,170,0.14); }
+  .ctx-item.cur { color: #8492a3; }
+  .ctx-item.cur::after { content: '\00b7'; margin-left: auto; color: #a3b0bd; }
 
   .panel-action {
     display: flex; gap: 8px;
@@ -852,9 +943,14 @@
   <aside class="panel left" id="docs-panel">
     <div class="panel-header">
       <div class="panel-title">文稿库</div>
-      <button class="icon-btn" id="docs-close" title="关闭">
-        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <button class="icon-btn" id="btn-new-folder" title="新建文件夹">
+          <svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/><path d="M12 11v5M9.5 13.5L12 11l2.5 2.5"/></svg>
+        </button>
+        <button class="icon-btn" id="docs-close" title="关闭">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
     </div>
     <div class="panel-body">
       <ul class="doc-list" id="doc-list"></ul>
@@ -969,7 +1065,7 @@
       <div class="setting-group">
         <div class="setting-label">云端同步 · GitHub</div>
         <p style="color:#8492a3;font-size:12px;line-height:1.6;margin:0 0 10px;">
-          文稿自动同步到你的 GitHub 仓库，<br>PC 与手机各填一次 Token 即可永久同步。
+          文稿与文件夹自动同步到你的 GitHub 仓库，<br>PC 与手机各填一次 Token 即可永久同步。
         </p>
         <input type="password" id="gh-token" placeholder="粘贴 Token（ghp_ 开头）"
           style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d5dde8;border-radius:8px;background:#fff;color:#424e60;font-size:12px;margin-bottom:8px;outline:none;">
@@ -1046,6 +1142,8 @@
 
 const LS_DOCS = 'yuqiu-docs-v1';
 const LS_SETTINGS = 'yuqiu-settings-v1';
+const LS_FOLDERS = 'yuqiu-folders-v1';   // 文件夹档案：文件夹本身 + 文稿归属 + 删除墓碑
+const LS_LIBUI = 'yuqiu-libui-v1';       // 文档库界面状态：当前视图 / 展开情况
 
 const FONT_MAP = {
   serif: '"Source Han Serif SC","Noto Serif SC","Songti SC","宋体",SimSun,serif',
@@ -1057,7 +1155,14 @@ const FONT_MAP = {
 /* ========== 状态 ========== */
 const state = {
   docs: [],            // [{id, title, content, font, size, lh, updatedAt}]
+  folders: [],         // [{id, name, order, createdAt, updatedAt}]
+  folderMap: {},       // { [docId]: {fid, at} } fid 为 null 表示未归档
+  tombstones: [],      // 已删除文件夹的墓碑 [{id, deletedAt}]，30 天后清理
+  foldersUpdatedAt: 0,
   currentId: null,
+  libView: 'all',      // all / unfiled / 某个 folderId
+  expanded: [],        // 展开着的文件夹 id
+  editingFolder: null, // 正在新建/重命名的临时状态，不持久化
   settings: {
     theme: 'rain',       // rain / sage / blush / xuan / hearth
     ambience: 'rain',    // rain / breeze / hearth / off
@@ -1234,6 +1339,41 @@ function loadAll() {
     if (raw) Object.assign(state.settings, JSON.parse(raw));
   } catch(e) { console.warn('load settings failed', e); }
 
+  try {
+    const raw = localStorage.getItem(LS_FOLDERS);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.folders)) state.folders = data.folders;
+      if (data.folderMap && typeof data.folderMap === 'object') state.folderMap = data.folderMap;
+      if (Array.isArray(data.tombstones)) state.tombstones = data.tombstones;
+      state.foldersUpdatedAt = data.updatedAt || 0;
+    }
+  } catch(e) { console.warn('load folders failed', e); }
+
+  let hadUI = false;
+  try {
+    const raw = localStorage.getItem(LS_LIBUI);
+    if (raw) {
+      const ui = JSON.parse(raw);
+      if (typeof ui.libView === 'string') state.libView = ui.libView;
+      if (Array.isArray(ui.expanded)) state.expanded = ui.expanded;
+      hadUI = true;
+    }
+  } catch(e) {}
+
+  // 清理失效的视图 / 展开项 / 归属关系
+  {
+    const validIds = state.folders.map(f => f.id);
+    if (state.libView !== 'all' && state.libView !== 'unfiled' && validIds.indexOf(state.libView) === -1) {
+      state.libView = 'all';
+    }
+    state.expanded = state.expanded.filter(k => k === 'all' || k === 'unfiled' || validIds.indexOf(k) !== -1);
+    if (!hadUI) state.expanded = ['all'];
+    Object.keys(state.folderMap).forEach(k => {
+      if (validIds.indexOf(state.folderMap[k].fid) === -1) state.folderMap[k].fid = null;
+    });
+  }
+
   if (state.docs.length === 0) {
     const id = uid();
     state.docs.push({
@@ -1259,6 +1399,35 @@ function saveDocs() {
 
 function saveSettings() {
   localStorage.setItem(LS_SETTINGS, JSON.stringify(state.settings));
+}
+
+/* ---- 文件夹档案：本地持久化（bump=false 表示只落地，不改版本号） ---- */
+function persistFolders(bump) {
+  if (bump !== false) state.foldersUpdatedAt = Date.now();
+  localStorage.setItem(LS_FOLDERS, JSON.stringify({
+    folders: state.folders,
+    folderMap: state.folderMap,
+    tombstones: state.tombstones,
+    updatedAt: state.foldersUpdatedAt || 0
+  }));
+}
+function saveFolders() {
+  persistFolders(true);
+  ghAutoSyncFolders();
+}
+function saveLibUI() {
+  localStorage.setItem(LS_LIBUI, JSON.stringify({
+    libView: state.libView,
+    expanded: state.expanded
+  }));
+}
+/* ---- 归属关系的读写口 ---- */
+function folderOf(docId) {
+  const m = state.folderMap[docId];
+  return m ? (m.fid || null) : null;
+}
+function docsInFolder(fid) {
+  return state.docs.filter(d => folderOf(d.id) === fid).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /* ========== GitHub 云端同步 ========== */
@@ -1362,11 +1531,112 @@ async function ghDeleteDoc(id) {
   } catch(e) { /* 文件已不存在，忽略 */ }
 }
 
+/* ---- 文件夹档案：仓库根目录 folders.json ---- */
+const GH_FOLDERS_FILE = 'folders.json';
+
+async function ghWriteFolders() {
+  let sha = '';
+  try {
+    const existing = await ghApi(GH_FOLDERS_FILE, 'GET');
+    sha = existing.sha;
+  } catch(e) { /* 远端还没有，新建 */ }
+
+  const payload = {
+    message: '更新文件夹',
+    content: btoa(unescape(encodeURIComponent(JSON.stringify({
+      folders: state.folders.map(f => ({
+        id: f.id, name: f.name, order: f.order,
+        createdAt: f.createdAt, updatedAt: f.updatedAt
+      })),
+      folderMap: state.folderMap,
+      tombstones: state.tombstones,
+      updatedAt: state.foldersUpdatedAt || Date.now()
+    }))))
+  };
+  if (sha) payload.sha = sha;
+  return ghApi(GH_FOLDERS_FILE, 'PUT', payload);
+}
+
+// 拉取远端档案并与本地合并：文件夹按 updatedAt 取新，归属关系按条目时间戳取新
+async function ghPullFolders() {
+  if (!hasGHToken()) return;
+  let fileData;
+  try { fileData = await ghApi(GH_FOLDERS_FILE, 'GET'); }
+  catch(e) { return; }                       // 远端还没建过档案，忽略
+  if (!fileData || !fileData.content) return;
+
+  let remote;
+  try { remote = JSON.parse(decodeURIComponent(escape(atob(fileData.content.replace(/\s/g, ''))))); }
+  catch(e) { return; }
+
+  const rFolders = Array.isArray(remote.folders) ? remote.folders : [];
+  const rTombs = Array.isArray(remote.tombstones) ? remote.tombstones : [];
+  const rMap = (remote.folderMap && typeof remote.folderMap === 'object') ? remote.folderMap : {};
+
+  // 1) 文件夹本体：按 id 合并
+  const fmap = new Map();
+  state.folders.forEach(f => fmap.set(f.id, Object.assign({}, f)));
+  rFolders.forEach(rf => {
+    if (!rf || !rf.id) return;
+    const cur = fmap.get(rf.id);
+    if (!cur) { fmap.set(rf.id, Object.assign({}, rf)); return; }
+    if ((rf.updatedAt || 0) > (cur.updatedAt || 0)) {
+      fmap.set(rf.id, Object.assign({}, cur, {
+        name: rf.name || cur.name,
+        order: (rf.order != null) ? rf.order : cur.order,
+        updatedAt: rf.updatedAt
+      }));
+    }
+  });
+
+  // 2) 墓碑：两边取并集，只保留 30 天内
+  const tombs = new Map();
+  rTombs.concat(state.tombstones).forEach(t => {
+    if (!t || !t.id) return;
+    tombs.set(t.id, Math.max(t.deletedAt || 0, tombs.get(t.id) || 0));
+  });
+  const KEEP = 30 * 24 * 3600 * 1000;
+  const now = Date.now();
+  state.tombstones = Array.from(tombs.entries())
+    .filter(pair => now - pair[1] < KEEP)
+    .map(pair => ({ id: pair[0], deletedAt: pair[1] }));
+
+  state.folders = Array.from(fmap.values())
+    .filter(f => !(tombs.get(f.id) > (f.updatedAt || 0)))
+    .sort((a, b) => (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0));
+
+  // 3) 归属关系：按条目时间戳取新的那份
+  const validIds = new Set(state.folders.map(f => f.id));
+  const mmap = new Map();
+  Object.keys(state.folderMap).forEach(k => mmap.set(k, Object.assign({}, state.folderMap[k])));
+  Object.keys(rMap).forEach(k => {
+    const rv = rMap[k];
+    if (rv == null) return;
+    const rf = (typeof rv === 'string') ? { fid: rv, at: 0 } : rv;
+    const cur = mmap.get(k);
+    if (!cur || (rf.at || 0) >= (cur.at || 0)) mmap.set(k, { fid: rf.fid || null, at: rf.at || 0 });
+  });
+  const newMap = {};
+  mmap.forEach((v, k) => { newMap[k] = { fid: validIds.has(v.fid) ? v.fid : null, at: v.at || 0 }; });
+  state.folderMap = newMap;
+
+  // 4) 落地 + 修正 UI 状态
+  state.foldersUpdatedAt = Math.max(state.foldersUpdatedAt || 0, remote.updatedAt || 0);
+  persistFolders(false);
+  state.expanded = state.expanded.filter(k => k === 'all' || k === 'unfiled' || validIds.has(k));
+  if (state.libView !== 'all' && state.libView !== 'unfiled' && !validIds.has(state.libView)) {
+    state.libView = 'all';
+  }
+  saveLibUI();
+  renderDocList();
+}
+
 // 从云端拉取所有文稿，合并到本地
 async function ghPullAll() {
   if (!hasGHToken()) return;
   try {
     updateGHStatus('拉取中…');
+    await ghPullFolders();          // 先把文件夹结构同步下来，再对文稿
     const remoteFiles = await ghListDocs();
     if (remoteFiles.length === 0) { updateGHStatus('云端无文稿'); return; }
 
@@ -1427,6 +1697,7 @@ async function ghPushAll() {
     for (const doc of state.docs) {
       await ghWriteDoc(doc);
     }
+    await ghWriteFolders();
     updateGHStatus('已推送 · 全部同步成功');
     setTimeout(() => updateGHStatus(), 4000);
     toast('已推送到云端');
@@ -1464,6 +1735,20 @@ const ghAutoSync = debounce(async () => {
     setTimeout(() => updateGHStatus(), 5000);
   }
 }, 3000);
+
+// 静默同步文件夹档案
+const ghAutoSyncFolders = debounce(async () => {
+  if (!hasGHToken()) return;
+  try {
+    updateGHStatus('同步文件夹…');
+    await ghWriteFolders();
+    updateGHStatus('已同步');
+    setTimeout(() => updateGHStatus(), 3000);
+  } catch(e) {
+    updateGHStatus('文件夹同步失败');
+    setTimeout(() => updateGHStatus(), 5000);
+  }
+}, 1500);
 
 // 静默同步删除
 const ghAutoDelete = debounce(async (id) => {
@@ -1570,34 +1855,371 @@ const autoTitleDebounced = debounce(() => {
   }
 }, 1500);
 
-/* ========== 文稿列表 ========== */
+/* ========== 文稿库：文件夹树 ========== */
+const IC_ALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16"/><path d="M4 12h16"/><path d="M4 17.5h10"/></svg>';
+const IC_UNFILED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4h8l5 5v11h-13z"/><path d="M13 4v5h5"/></svg>';
+const IC_FOLDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>';
+const IC_CARET = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l8 7-8 7z"/></svg>';
+
+let dragDocId = null;
+
 function renderDocList() {
   const ul = $('doc-list');
   ul.innerHTML = '';
-  const sorted = [...state.docs].sort((a,b) => b.updatedAt - a.updatedAt);
-  sorted.forEach(d => {
+
+  // ── 全部 / 未归档 ──
+  ul.appendChild(buildGroupLi({
+    caret: true, key: 'all', view: 'all', icon: IC_ALL, name: '全部文稿',
+    count: state.docs.length,
+    children: isOpen('all') ? [...state.docs].sort((a, b) => b.updatedAt - a.updatedAt) : null,
+    emptyText: '还没有文稿'
+  }));
+  ul.appendChild(buildGroupLi({
+    caret: true, key: 'unfiled', view: 'unfiled', icon: IC_UNFILED, name: '未归档',
+    dropTarget: true,
+    count: state.docs.filter(d => !folderOf(d.id)).length,
+    children: isOpen('unfiled') ? docsInFolder(null) : null,
+    emptyText: '都归档起来了'
+  }));
+
+  // ── 文件夹区 ──
+  ul.appendChild((() => { const li = document.createElement('li'); li.className = 'lib-divider'; return li; })());
+
+  state.folders.forEach(f => {
+    const open = state.expanded.indexOf(f.id) !== -1;
+    let row;
+    if (state.editingFolder && state.editingFolder.type === 'rename' && state.editingFolder.id === f.id) {
+      row = buildFolderInput(f.name, v => renameFolder(f.id, v));
+    } else {
+      row = buildGroupRow({
+        caret: true, key: f.id, folder: f, icon: IC_FOLDER, name: f.name,
+        view: f.id, count: docsInFolder(f.id).length, dropTarget: true
+      });
+    }
     const li = document.createElement('li');
-    li.className = 'doc-item' + (d.id === state.currentId ? ' active' : '');
-    const preview = htmlToText(d.content || '').replace(/\s+/g, ' ').slice(0, 32) || '（空白）';
-    li.innerHTML = `
-      <div style="flex:1;min-width:0;">
-        <div class="name">${escapeHtml(d.title || '无题')}</div>
-        <div class="preview">${escapeHtml(preview)}</div>
-      </div>
-      <span class="time">${fmtTime(d.updatedAt).split(' ')[0]}</span>
-      <button class="del" title="删除">×</button>
-    `;
-    li.addEventListener('click', e => {
-      if (e.target.classList.contains('del')) {
-        e.stopPropagation();
-        deleteDoc(d.id);
-        return;
-      }
-      switchDoc(d.id);
-      closePanel('docs');
-    });
+    li.className = 'folder-row' + (open ? ' open' : '');
+    li.appendChild(row);
+    if (open && !(state.editingFolder && state.editingFolder.id === f.id)) {
+      li.appendChild(buildChildrenBox(docsInFolder(f.id), '空的'));
+    }
     ul.appendChild(li);
   });
+
+  // ── 新建输入框 / 空态提示 ──
+  if (state.editingFolder && state.editingFolder.type === 'new') {
+    const li = document.createElement('li');
+    li.className = 'folder-row';
+    li.appendChild(buildFolderInput('', v => createFolder(v)));
+    ul.appendChild(li);
+  } else if (state.folders.length === 0) {
+    const em = document.createElement('li');
+    em.className = 'lib-empty';
+    em.textContent = '还没有文件夹 · 点右上角的「＋」新建一个';
+    ul.appendChild(em);
+  }
+}
+
+function buildGroupLi(o) {
+  const li = document.createElement('li');
+  if (o.children) li.className = 'folder-row open';
+  li.appendChild(buildGroupRow(o));
+  if (o.children) li.appendChild(buildChildrenBox(o.children, o.emptyText));
+  return li;
+}
+
+function buildChildrenBox(list, emptyText) {
+  const box = document.createElement('ul');
+  box.className = 'folder-children';
+  if (!list || list.length === 0) {
+    const em = document.createElement('li');
+    em.className = 'lib-empty';
+    em.style.padding = '4px 12px 6px';
+    em.textContent = emptyText || '';
+    box.appendChild(em);
+    return box;
+  }
+  list.forEach(d => box.appendChild(buildDocItem(d)));
+  return box;
+}
+
+function buildGroupRow(o) {
+  const el = document.createElement('div');
+  el.className = 'grp-item' + (state.libView === o.view ? ' active' : '');
+
+  const caret = document.createElement('span');
+  caret.className = 'grp-caret';
+  if (o.caret) {
+    caret.innerHTML = IC_CARET;
+    caret.addEventListener('click', e => { e.stopPropagation(); toggleKey(o.key); });
+  }
+  el.appendChild(caret);
+
+  const ic = document.createElement('span');
+  ic.className = 'grp-icon';
+  ic.innerHTML = o.icon;
+  el.appendChild(ic);
+
+  const nm = document.createElement('span');
+  nm.className = 'grp-name';
+  nm.textContent = o.name;
+  el.appendChild(nm);
+
+  const ct = document.createElement('span');
+  ct.className = 'grp-count';
+  ct.textContent = o.count;
+  el.appendChild(ct);
+
+  if (o.folder) {
+    const rn = document.createElement('button');
+    rn.className = 'grp-act'; rn.title = '重命名'; rn.textContent = '\u270e';
+    rn.addEventListener('click', e => {
+      e.stopPropagation();
+      state.editingFolder = { type: 'rename', id: o.folder.id };
+      renderDocList();
+    });
+    el.appendChild(rn);
+
+    const del = document.createElement('button');
+    del.className = 'grp-act del'; del.title = '删除文件夹'; del.textContent = '\u00d7';
+    del.addEventListener('click', e => { e.stopPropagation(); deleteFolder(o.folder.id); });
+    el.appendChild(del);
+  }
+
+  el.addEventListener('click', () => {
+    if (o.folder) {
+      state.libView = o.folder.id;
+      if (state.expanded.indexOf(o.folder.id) === -1) state.expanded.push(o.folder.id);
+    } else {
+      state.libView = o.view;
+    }
+    saveLibUI();
+    renderDocList();
+  });
+
+  if (o.dropTarget) setupDropTarget(el, o.folder ? o.folder.id : null);
+  return el;
+}
+
+function buildDocItem(d) {
+  const li = document.createElement('li');
+  li.className = 'doc-item' + (d.id === state.currentId ? ' active' : '');
+  li.draggable = true;
+  const preview = htmlToText(d.content || '').replace(/\s+/g, ' ').slice(0, 32) || '（空白）';
+  li.innerHTML = `
+    <div style="flex:1;min-width:0;">
+      <div class="name">${escapeHtml(d.title || '无题')}</div>
+      <div class="preview">${escapeHtml(preview)}</div>
+    </div>
+    <span class="time">${fmtTime(d.updatedAt).split(' ')[0]}</span>
+    <button class="act" title="移动到…">···</button>
+    <button class="del" title="删除">×</button>
+  `;
+  li.addEventListener('click', e => {
+    if (e.target.classList.contains('del')) { e.stopPropagation(); deleteDoc(d.id); return; }
+    if (e.target.classList.contains('act')) { e.stopPropagation(); openMoveMenu(d.id, e.target); return; }
+    switchDoc(d.id);
+    closePanel('docs');
+  });
+  li.addEventListener('dragstart', e => {
+    dragDocId = d.id;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', d.id); } catch(err) {}
+    setTimeout(() => li.classList.add('dragging'), 0);
+  });
+  li.addEventListener('dragend', () => { dragDocId = null; li.classList.remove('dragging'); });
+  return li;
+}
+
+function setupDropTarget(el, fid) {
+  el.addEventListener('dragover', e => {
+    if (!dragDocId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    el.classList.add('drop-hover');
+  });
+  el.addEventListener('dragleave', () => el.classList.remove('drop-hover'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    el.classList.remove('drop-hover');
+    if (dragDocId) moveDoc(dragDocId, fid);
+  });
+}
+
+// 新建 / 重命名时用的行内输入框
+function buildFolderInput(initial, commit) {
+  const wrap = document.createElement('div');
+  wrap.className = 'grp-item';
+  const gap = document.createElement('span');
+  gap.className = 'grp-caret';
+  wrap.appendChild(gap);
+  const ic = document.createElement('span');
+  ic.className = 'grp-icon';
+  ic.innerHTML = IC_FOLDER;
+  wrap.appendChild(ic);
+
+  const inp = document.createElement('input');
+  inp.className = 'folder-name-input';
+  inp.value = initial || '';
+  inp.placeholder = '文件夹名字';
+  wrap.appendChild(inp);
+
+  let done = false;
+  const finish = ok => {
+    if (done) return;
+    done = true;
+    const v = inp.value.trim();
+    state.editingFolder = null;
+    if (ok && v) commit(v);
+    else renderDocList();
+  };
+  inp.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  return wrap;
+}
+
+/* ========== 文件夹操作 ========== */
+// 展开状态里的 key 可以是 'all' / 'unfiled' / 文件夹 id
+function isOpen(key) { return state.expanded.indexOf(key) !== -1; }
+function toggleKey(key) {
+  const i = state.expanded.indexOf(key);
+  if (i === -1) state.expanded.push(key); else state.expanded.splice(i, 1);
+  saveLibUI();
+  renderDocList();
+}
+function toggleFolder(fid) { toggleKey(fid); }
+
+function createFolder(name) {
+  name = (name || '').trim();
+  if (!name) return false;
+  if (state.folders.some(f => f.name === name)) { toast('已经有同名文件夹了'); return false; }
+  const now = Date.now();
+  const f = {
+    id: 'f' + uid(), name: name,
+    order: state.folders.length, createdAt: now, updatedAt: now
+  };
+  state.folders.push(f);
+  state.libView = f.id;
+  if (state.expanded.indexOf(f.id) === -1) state.expanded.push(f.id);
+  if (state.expanded.indexOf('all') === -1) state.expanded.push('all');
+  saveFolders(); saveLibUI();
+  renderDocList();
+  toast('已新建「' + name + '」');
+  return true;
+}
+
+function renameFolder(fid, name) {
+  name = (name || '').trim();
+  const f = state.folders.find(x => x.id === fid);
+  if (!f || !name) { renderDocList(); return; }
+  if (f.name !== name && state.folders.some(x => x.id !== fid && x.name === name)) {
+    toast('已经有同名文件夹了');
+    renderDocList();
+    return;
+  }
+  f.name = name;
+  f.updatedAt = Date.now();
+  saveFolders();
+  renderDocList();
+  toast('已重命名');
+}
+
+function deleteFolder(fid) {
+  const f = state.folders.find(x => x.id === fid);
+  if (!f) return;
+  const n = state.docs.filter(d => folderOf(d.id) === fid).length;
+  if (!confirm('删除文件夹「' + f.name + '」？' + (n ? '里面的 ' + n + ' 篇文稿会回到「未归档」。' : ''))) return;
+  state.folders = state.folders.filter(x => x.id !== fid);
+  const now = Date.now();
+  Object.keys(state.folderMap).forEach(k => {
+    if (state.folderMap[k].fid === fid) state.folderMap[k] = { fid: null, at: now };
+  });
+  state.tombstones.push({ id: fid, deletedAt: now });
+  state.expanded = state.expanded.filter(x => x !== fid);
+  if (state.libView === fid) state.libView = 'all';
+  saveFolders(); saveLibUI();
+  renderDocList();
+  toast('文件夹已删除');
+}
+
+function moveDoc(docId, fid) {
+  const d = state.docs.find(x => x.id === docId);
+  if (!d) return;
+  fid = fid || null;
+  if (folderOf(docId) === fid) return;
+  state.folderMap[docId] = { fid: fid, at: Date.now() };
+  if (fid && state.expanded.indexOf(fid) === -1) state.expanded.push(fid);
+  saveFolders(); saveLibUI();
+  renderDocList();
+  const fname = fid ? ((state.folders.find(f => f.id === fid) || {}).name) : '未归档';
+  toast('已移到「' + fname + '」');
+}
+
+/* ========== 移动到… 浮层 ========== */
+function ensureCtxMenu() {
+  let el = $('ctx-menu');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ctx-menu';
+    el.className = 'ctx-menu';
+    document.body.appendChild(el);
+    document.addEventListener('click', e => {
+      if (!el.contains(e.target)) el.classList.remove('open');
+    });
+  }
+  return el;
+}
+
+function openMoveMenu(docId, anchor) {
+  const menu = ensureCtxMenu();
+  menu.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'ctx-label';
+  label.textContent = '移动到';
+  menu.appendChild(label);
+
+  const cur = folderOf(docId);
+  const mkItem = (name, fid) => {
+    const it = document.createElement('div');
+    it.className = 'ctx-item' + (cur === fid ? ' cur' : '');
+    it.textContent = name;
+    it.addEventListener('click', () => { menu.classList.remove('open'); moveDoc(docId, fid); });
+    menu.appendChild(it);
+  };
+  mkItem('未归档', null);
+  state.folders.forEach(f => mkItem(f.name, f.id));
+
+  const sep = document.createElement('div');
+  sep.style.cssText = 'height:1px;background:rgba(140,160,180,0.16);margin:5px 0;';
+  menu.appendChild(sep);
+
+  const nw = document.createElement('div');
+  nw.className = 'ctx-item';
+  nw.textContent = '＋ 新建文件夹…';
+  nw.addEventListener('click', () => {
+    menu.classList.remove('open');
+    const name = prompt('新文件夹的名字');
+    if (name && createFolder(name)) {
+      const nf = state.folders[state.folders.length - 1];
+      moveDoc(docId, nf.id);
+    }
+  });
+  menu.appendChild(nw);
+
+  const r = anchor.getBoundingClientRect();
+  menu.style.left = '0px';
+  menu.style.top = '0px';
+  menu.classList.add('open');
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  let x = Math.max(8, Math.min(window.innerWidth - mw - 8, r.right - mw));
+  let y = r.bottom + 6;
+  if (y + mh > window.innerHeight - 8) y = Math.max(8, r.top - mh - 6);
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
 }
 
 function escapeHtml(s) {
@@ -1616,6 +2238,12 @@ function newDoc() {
     updatedAt: Date.now()
   });
   state.currentId = id;
+  // 在某个文件夹视图下新建时，直接归到这个文件夹
+  if (state.folders.some(f => f.id === state.libView)) {
+    state.folderMap[id] = { fid: state.libView, at: Date.now() };
+    if (state.expanded.indexOf(state.libView) === -1) state.expanded.push(state.libView);
+    saveFolders(); saveLibUI();
+  }
   saveDocs();
   applyDocToEditor();
   renderDocList();
@@ -1646,6 +2274,8 @@ function deleteDoc(id) {
   if (idx === -1) return;
   if (!confirm('确定删除这篇文稿？')) return;
   state.docs.splice(idx, 1);
+  delete state.folderMap[id];
+  persistFolders(false);
   if (state.currentId === id) {
     state.currentId = state.docs[0].id;
   }
@@ -2562,7 +3192,9 @@ $('btn-export-json').addEventListener('click', () => {
     exportedAt: new Date().toISOString(),
     settings: state.settings,
     docs: state.docs,
-    currentId: state.currentId
+    currentId: state.currentId,
+    folders: state.folders,
+    folderMap: state.folderMap
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2881,6 +3513,27 @@ $('import-file').addEventListener('change', e => {
       const map = new Map(state.docs.map(d => [d.id, d]));
       data.docs.forEach(d => map.set(d.id, d));
       state.docs = Array.from(map.values());
+
+      // 文件夹：按 id 合并；归属关系：导入的覆盖本机
+      if (Array.isArray(data.folders)) {
+        const fmap = new Map(state.folders.map(f => [f.id, f]));
+        data.folders.forEach(f => {
+          const cur = fmap.get(f.id);
+          if (!cur || (f.updatedAt || 0) >= (cur.updatedAt || 0)) fmap.set(f.id, Object.assign({}, cur || {}, f));
+        });
+        state.folders = Array.from(fmap.values())
+          .sort((a, b) => (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0));
+      }
+      if (data.folderMap && typeof data.folderMap === 'object') {
+        const validIds = new Set(state.folders.map(f => f.id));
+        Object.assign(state.folderMap, data.folderMap);
+        Object.keys(state.folderMap).forEach(k => {
+          const v = state.folderMap[k];
+          const fid = (typeof v === 'string') ? v : (v && v.fid);
+          state.folderMap[k] = { fid: validIds.has(fid) ? fid : null, at: Date.now() };
+        });
+        persistFolders(true);
+      }
       if (data.settings) Object.assign(state.settings, data.settings);
       if (data.currentId && state.docs.find(d => d.id === data.currentId)) {
         state.currentId = data.currentId;
@@ -2914,6 +3567,13 @@ $('btn-clear-all').addEventListener('click', () => {
   localStorage.removeItem(LS_DOCS);
   state.docs = [];
   state.currentId = null;
+  state.folders = [];
+  state.folderMap = {};
+  state.tombstones = [];
+  state.expanded = [];
+  state.libView = 'all';
+  persistFolders(true);
+  saveLibUI();
   // 重新建一篇
   const id = uid();
   state.docs.push({
@@ -2971,6 +3631,10 @@ $('docs-overlay').addEventListener('click', () => closePanel('docs'));
 $('settings-overlay').addEventListener('click', () => closePanel('settings'));
 $('export-overlay').addEventListener('click', () => closePanel('export'));
 $('btn-new').addEventListener('click', newDoc);
+$('btn-new-folder').addEventListener('click', () => {
+  state.editingFolder = { type: 'new' };
+  renderDocList();
+});
 
 // 键盘快捷键
 window.addEventListener('keydown', e => {
@@ -2990,6 +3654,8 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeAllPanels();
     $('rename-modal').classList.remove('open');
+    const cm = $('ctx-menu');
+    if (cm) cm.classList.remove('open');
   }
   // Ctrl/Cmd + N 新建
   if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
